@@ -1631,36 +1631,7 @@ def run_bot():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("reset", reset))
 
-    app.add_handler(CallbackQueryHandler(home_handler, pattern=r"^home$"))
-    app.add_handler(CallbackQueryHandler(new_check_syriatel_handler, pattern=r"^new_check_syriatel$"))
-    app.add_handler(CallbackQueryHandler(new_check_shamcash_handler, pattern=r"^new_check_shamcash$"))
-    app.add_handler(CallbackQueryHandler(check_balance_syriatel_handler, pattern=r"^check_balance_syriatel$"))
-    app.add_handler(CallbackQueryHandler(check_balance_shamcash_handler, pattern=r"^check_balance_shamcash$"))
-    app.add_handler(CallbackQueryHandler(my_last_ops_handler, pattern=r"^my_last_ops$"))
-    app.add_handler(CallbackQueryHandler(support_handler, pattern=r"^support$"))
-
-    app.add_handler(CallbackQueryHandler(admin_panel_handler, pattern=r"^admin_panel$"))
-    app.add_handler(CallbackQueryHandler(admin_last_handler, pattern=r"^admin_last$"))
-    app.add_handler(CallbackQueryHandler(admin_stats_handler, pattern=r"^admin_stats$"))
-    app.add_handler(CallbackQueryHandler(admin_today_handler, pattern=r"^admin_today$"))
-    app.add_handler(CallbackQueryHandler(admin_duplicates_handler, pattern=r"^admin_duplicates$"))
-    app.add_handler(CallbackQueryHandler(admin_search_prompt_handler, pattern=r"^admin_search$"))
-    app.add_handler(CallbackQueryHandler(admin_errors_handler, pattern=r"^admin_errors$"))
-    app.add_handler(CallbackQueryHandler(admin_export_handler, pattern=r"^admin_export$"))
-    app.add_handler(CallbackQueryHandler(admin_maint_on_handler, pattern=r"^admin_maint_on$"))
-    app.add_handler(CallbackQueryHandler(admin_maint_off_handler, pattern=r"^admin_maint_off$"))
-
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
-    print("STEP 9: handlers added", flush=True)
-
-       logger.info("Bot started on Render Web Service...")
-    print("STEP 10: before polling", flush=True)
-
-    app.run_polling(
-        drop_pending_updates=True,
-        close_loop=False,
-        stop_signals=None
-    )
+    app.add_handler(CallbackQueryHandler(home_handler,
 
 def main():
     bot_thread = threading.Thread(target=run_bot, daemon=True)
