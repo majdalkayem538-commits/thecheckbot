@@ -1585,32 +1585,29 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # =========================================
 
 def run_health_server():
-    port = int(os.getenv("PORT", "10000"))
+    port = int(os.getenv("PORT", 10000))
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
-            if self.path in ("/", "/health", "/ping"):
-                self.send_response(200)
-                self.send_header("Content-type", "text/plain; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(b"Bot is running")
-            else:
-                self.send_response(404)
-                self.send_header("Content-type", "text/plain; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(b"Not found")
+            try:
+                if self.path == "/health":
+                    self.send_response(200)
+                    self.send_header("Content-type", "text/plain")
+                    self.end_headers()
+                    self.wfile.write(b"OK")
+                else:
+                    self.send_response(200)
+                    self.end_headers()
+                    self.wfile.write(b"Running")
+            except Exception as e:
+                print("Health error:", e)
 
         def log_message(self, format, *args):
             return
 
-    try:
-        server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
-        logger.info("Health server started on port %s", port)
-        server.serve_forever()
-    except Exception as e:
-        logger.exception("Health server failed: %s", e)
-        raise
-
+    server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
+    print(f"Health server running on port {port}")
+    server.serve_forever()
 # =========================================
 # التشغيل
 # =========================================
