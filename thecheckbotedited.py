@@ -1582,7 +1582,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["state"] = STATE_NONE
 
 # =========================================
-# health server لـ Render
+# Flask health server
 # =========================================
 
 web_app = Flask(__name__)
@@ -1594,8 +1594,10 @@ def home():
 @web_app.get("/health")
 def health():
     return "OK", 200
+
+
 # =========================================
-# التشغيل
+# تشغيل البوت
 # =========================================
 
 def run_bot():
@@ -1628,19 +1630,59 @@ def run_bot():
     app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
     print("STEP 8: telegram app built", flush=True)
 
+    # ===== Handlers =====
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("reset", reset))
 
-    app.add_handler(CallbackQueryHandler(home_handler,
+    app.add_handler(CallbackQueryHandler(home_handler, pattern=r"^home$"))
+    app.add_handler(CallbackQueryHandler(new_check_syriatel_handler, pattern=r"^new_check_syriatel$"))
+    app.add_handler(CallbackQueryHandler(new_check_shamcash_handler, pattern=r"^new_check_shamcash$"))
+    app.add_handler(CallbackQueryHandler(check_balance_syriatel_handler, pattern=r"^check_balance_syriatel$"))
+    app.add_handler(CallbackQueryHandler(check_balance_shamcash_handler, pattern=r"^check_balance_shamcash$"))
+    app.add_handler(CallbackQueryHandler(my_last_ops_handler, pattern=r"^my_last_ops$"))
+    app.add_handler(CallbackQueryHandler(support_handler, pattern=r"^support$"))
+
+    app.add_handler(CallbackQueryHandler(admin_panel_handler, pattern=r"^admin_panel$"))
+    app.add_handler(CallbackQueryHandler(admin_last_handler, pattern=r"^admin_last$"))
+    app.add_handler(CallbackQueryHandler(admin_stats_handler, pattern=r"^admin_stats$"))
+    app.add_handler(CallbackQueryHandler(admin_today_handler, pattern=r"^admin_today$"))
+    app.add_handler(CallbackQueryHandler(admin_duplicates_handler, pattern=r"^admin_duplicates$"))
+    app.add_handler(CallbackQueryHandler(admin_search_prompt_handler, pattern=r"^admin_search$"))
+    app.add_handler(CallbackQueryHandler(admin_errors_handler, pattern=r"^admin_errors$"))
+    app.add_handler(CallbackQueryHandler(admin_export_handler, pattern=r"^admin_export$"))
+    app.add_handler(CallbackQueryHandler(admin_maint_on_handler, pattern=r"^admin_maint_on$"))
+    app.add_handler(CallbackQueryHandler(admin_maint_off_handler, pattern=r"^admin_maint_off$"))
+
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
+
+    print("STEP 9: handlers added", flush=True)
+
+    logger.info("Bot started on Render Web Service...")
+    print("STEP 10: before polling", flush=True)
+
+    # 🔥 الحل النهائي لمشكلة Thread
+    app.run_polling(
+        drop_pending_updates=True,
+        close_loop=False,
+        stop_signals=None
+    )
+
+
+# =========================================
+# التشغيل الرئيسي
+# =========================================
 
 def main():
+    # تشغيل البوت في Thread
     bot_thread = threading.Thread(target=run_bot, daemon=True)
     bot_thread.start()
 
+    # تشغيل Flask
     port = int(os.getenv("PORT", "10000"))
-    print(f"Flask health server running on port {port}", flush=True)
+    print(f"Flask running on port {port}", flush=True)
 
     web_app.run(host="0.0.0.0", port=port)
+
 
 if __name__ == "__main__":
     main()
