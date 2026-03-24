@@ -1653,10 +1653,14 @@ def run_bot():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
     print("STEP 9: handlers added", flush=True)
 
-    logger.info("Bot started on Render Web Service...")
+       logger.info("Bot started on Render Web Service...")
     print("STEP 10: before polling", flush=True)
 
-    app.run_polling(drop_pending_updates=True, close_loop=False)
+    app.run_polling(
+        drop_pending_updates=True,
+        close_loop=False,
+        stop_signals=None
+    )
 
 def main():
     bot_thread = threading.Thread(target=run_bot, daemon=True)
