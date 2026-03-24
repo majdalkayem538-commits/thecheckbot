@@ -6,8 +6,8 @@ import asyncio
 import sqlite3
 import time
 import os
+from http.server import BaseHTTPRequestHandler, HTTPServer
 import threading
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from datetime import datetime
 from typing import Tuple, Dict, Any, Optional
 
@@ -1589,24 +1589,16 @@ def run_health_server():
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
-            try:
-                if self.path == "/health":
-                    self.send_response(200)
-                    self.send_header("Content-type", "text/plain")
-                    self.end_headers()
-                    self.wfile.write(b"OK")
-                else:
-                    self.send_response(200)
-                    self.end_headers()
-                    self.wfile.write(b"Running")
-            except Exception as e:
-                print("Health error:", e)
+            self.send_response(200)
+            self.send_header("Content-type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"OK")
 
         def log_message(self, format, *args):
             return
 
-    server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
-    print(f"Health server running on port {port}")
+    server = HTTPServer(("0.0.0.0", port), Handler)
+    print("Health server running...")
     server.serve_forever()
 # =========================================
 # التشغيل
@@ -1633,7 +1625,7 @@ def main():
     init_db()
     print("STEP 7: DB initialized", flush=True)
 
-    threading.Thread(target=run_health_server, daemon=True).start()
+  
     print("STEP 8: health server started", flush=True)
 
     app = Application.builder().token(BOT_TOKEN).build()
@@ -1669,6 +1661,7 @@ def main():
     
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+      threading.Thread(target=run_health_server, daemon=True).start()
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
