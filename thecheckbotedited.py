@@ -1628,7 +1628,7 @@ def main():
     threading.Thread(target=run_health_server, daemon=True).start()
     print("STEP 8: health server started", flush=True)
 
-  async def post_init(application):
+    async def post_init(application):
         await application.bot.delete_webhook(drop_pending_updates=True)
 
     app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
@@ -1661,10 +1661,12 @@ def main():
 
     logger.info("Bot started on Render Web Service...")
     print("STEP 11: before polling", flush=True)
-    
+
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-        app.run_polling(drop_pending_updates=True, close_loop=False)
+
+    app.run_polling(drop_pending_updates=True, close_loop=False)
+
 
 if __name__ == "__main__":
     main()
