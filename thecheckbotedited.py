@@ -1625,7 +1625,7 @@ def main():
     init_db()
     print("STEP 7: DB initialized", flush=True)
 
-  
+    threading.Thread(target=run_health_server, daemon=True).start()
     print("STEP 8: health server started", flush=True)
 
     app = Application.builder().token(BOT_TOKEN).build()
@@ -1661,7 +1661,7 @@ def main():
     
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-      threading.Thread(target=run_health_server, daemon=True).start()
+    
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
