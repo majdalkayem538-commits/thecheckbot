@@ -2,6 +2,7 @@ import csv
 import io
 import json
 import logging
+from flask import Flask
 import asyncio
 import sqlite3
 import time
@@ -1584,28 +1585,21 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # health server لـ Render
 # =========================================
 
-class Handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/plain")
-        self.end_headers()
-        self.wfile.write(b"Bot is running")
+web_app = Flask(__name__)
 
-    def do_HEAD(self):
-        self.send_response(200)
-        self.end_headers()
+@web_app.get("/")
+def home():
+    return "OK", 200
 
-
-def run_web_server():
-    port = int(os.getenv("PORT", 10000))
-    server = HTTPServer(("0.0.0.0", port), Handler)
-    server.serve_forever()
+@web_app.get("/health")
+def health():
+    return "OK", 200
 # =========================================
 # التشغيل
 # =========================================
 
-def main():
-    print("STEP 1: main started", flush=True)
+def run_bot():
+    print("STEP 1: bot thread started", flush=True)
 
     if not BOT_TOKEN:
         raise ValueError("BOT_TOKEN is missing")
@@ -1625,8 +1619,14 @@ def main():
     init_db()
     print("STEP 7: DB initialized", flush=True)
 
-     app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
-    print("STEP 9: telegram app built", flush=True)
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    async def post_init(application):
+        await application.bot.delete_webhook(drop_pending_updates=True)
+
+    app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
+    print("STEP 8: telegram app built", flush=True)
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("reset", reset))
@@ -1651,19 +1651,21 @@ def main():
     app.add_handler(CallbackQueryHandler(admin_maint_off_handler, pattern=r"^admin_maint_off$"))
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
-    print("STEP 10: handlers added", flush=True)
-
-threading.Thread(target=run_web_server, daemon=True).start()
-
+    print("STEP 9: handlers added", flush=True)
 
     logger.info("Bot started on Render Web Service...")
-    print("STEP 11: before polling", flush=True)
+    print("STEP 10: before polling", flush=True)
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+    app.run_polling(drop_pending_updates=True, close_loop=False)
 
-   app.run_polling(drop_pending_updates=True, close_loop=False)
+def main():
+    bot_thread = threading.Thread(target=run_bot, daemon=True)
+    bot_thread.start()
 
+    port = int(os.getenv("PORT", "10000"))
+    print(f"Flask health server running on port {port}", flush=True)
+
+    web_app.run(host="0.0.0.0", port=port)
 
 if __name__ == "__main__":
     main()
