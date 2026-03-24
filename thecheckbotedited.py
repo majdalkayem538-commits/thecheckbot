@@ -1628,7 +1628,10 @@ def main():
     threading.Thread(target=run_health_server, daemon=True).start()
     print("STEP 8: health server started", flush=True)
 
-    app = Application.builder().token(BOT_TOKEN).build()
+  async def post_init(application):
+        await application.bot.delete_webhook(drop_pending_updates=True)
+
+    app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
     print("STEP 9: telegram app built", flush=True)
 
     app.add_handler(CommandHandler("start", start))
@@ -1661,8 +1664,7 @@ def main():
     
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    
-    app.run_polling(drop_pending_updates=True)
+        app.run_polling(drop_pending_updates=True, close_loop=False)
 
 if __name__ == "__main__":
     main()
