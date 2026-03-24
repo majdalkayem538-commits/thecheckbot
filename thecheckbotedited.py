@@ -2,6 +2,7 @@ import csv
 import io
 import json
 import logging
+import asyncio
 import sqlite3
 import time
 import os
@@ -1668,7 +1669,9 @@ def main():
 
     logger.info("Bot started on Render Web Service...")
     print("STEP 11: before polling", flush=True)
-
+    
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
