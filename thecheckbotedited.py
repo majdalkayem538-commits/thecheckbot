@@ -6,8 +6,8 @@ import asyncio
 import sqlite3
 import time
 import os
-from http.server import BaseHTTPRequestHandler, HTTPServer
 import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime
 from typing import Tuple, Dict, Any, Optional
 
@@ -1584,29 +1584,21 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # health server لـ Render
 # =========================================
 
-def run_health_server():
-    port = int(os.getenv("PORT", "10000"))
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain")
+        self.end_headers()
+        self.wfile.write(b"Bot is running")
 
-    class Handler(BaseHTTPRequestHandler):
-        def _send_ok(self, body: bytes = b"OK", include_body: bool = True):
-            self.send_response(200)
-            self.send_header("Content-type", "text/plain; charset=utf-8")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            if include_body:
-                self.wfile.write(body)
+    def do_HEAD(self):
+        self.send_response(200)
+        self.end_headers()
 
-        def do_GET(self):
-            self._send_ok(b"OK", include_body=True)
 
-        def do_HEAD(self):
-            self._send_ok(b"OK", include_body=False)
-
-        def log_message(self, format, *args):
-            return
-
-    server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
-    print(f"Health server running on port {port}", flush=True)
+def run_web_server():
+    port = int(os.getenv("PORT", 10000))
+    server = HTTPServer(("0.0.0.0", port), Handler)
     server.serve_forever()
 # =========================================
 # التشغيل
@@ -1633,13 +1625,7 @@ def main():
     init_db()
     print("STEP 7: DB initialized", flush=True)
 
-    threading.Thread(target=run_health_server, daemon=True).start()
-    print("STEP 8: health server started", flush=True)
-
-    async def post_init(application):
-        await application.bot.delete_webhook(drop_pending_updates=True)
-
-    app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
+     app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
     print("STEP 9: telegram app built", flush=True)
 
     app.add_handler(CommandHandler("start", start))
@@ -1667,13 +1653,16 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
     print("STEP 10: handlers added", flush=True)
 
+threading.Thread(target=run_web_server, daemon=True).start()
+
+
     logger.info("Bot started on Render Web Service...")
     print("STEP 11: before polling", flush=True)
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
-    app.run_polling(drop_pending_updates=True, close_loop=False)
+   app.run_polling(drop_pending_updates=True, close_loop=False)
 
 
 if __name__ == "__main__":
