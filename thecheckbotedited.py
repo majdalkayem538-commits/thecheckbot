@@ -1620,12 +1620,9 @@ def main():
         raise ValueError("API_SYRIA_KEY is missing")
     if ADMIN_ID == 0:
         raise ValueError("ADMIN_ID is missing or invalid")
-    if not SYRIATEL_GSMS and not SHAMCASH_ACCOUNTS:
-        raise ValueError("No payment accounts configured")
 
     init_db()
 
-    # تشغيل health server المطلوب من Render Web Service
     threading.Thread(target=run_health_server, daemon=True).start()
 
     app = Application.builder().token(BOT_TOKEN).build()
@@ -1653,8 +1650,6 @@ def main():
     app.add_handler(CallbackQueryHandler(admin_maint_off_handler, pattern=r"^admin_maint_off$"))
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
-        logger.info("Bot started on Render Web Service...")
-    app.run_polling()
 
-if __name__ == "__main__":
-    main()
+    logger.info("Bot started on Render Web Service...")
+    app.run_polling()
