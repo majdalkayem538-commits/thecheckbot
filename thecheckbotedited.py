@@ -1653,3 +1653,5 @@ def main():
 
     logger.info("Bot started on Render Web Service...")
     app.run_polling()
+if __name__ == "__main__":
+    main()
