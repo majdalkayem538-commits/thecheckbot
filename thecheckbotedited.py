@@ -663,36 +663,49 @@ def check_syriatel_tx_multi(tx_number: str) -> Tuple[bool, Dict[str, Any]]:
             response.raise_for_status()
             data = response.json()
 
-            all_attempts.append({"gsm": gsm, "response": data})
+            all_attempts.append({
+                "gsm": gsm,
+                "response": data
+            })
 
             if not data.get("success"):
                 continue
 
             payload = data.get("data", {})
             found = payload.get("found", False)
+
+            # إذا العملية موجودة ضمن الحساب الذي بحثنا فيه، نعتبرها صحيحة
             if not found:
                 continue
 
             transaction = payload.get("transaction", {})
-            account = payload.get("account", {})
 
-            tx_to = str(transaction.get("to", "")).strip()
-            account_gsm = str(account.get("gsm", "")).strip()
+            return True, {
+                "matched_gsm": gsm,
+                "transaction": {
+                    "transaction_no": str(transaction.get("transaction_no", tx_number)).strip(),
+                    "amount": str(transaction.get("amount", "غير معروف")).strip(),
+                    "date": str(transaction.get("date", "غير معروف")).strip(),
+                    "from": str(transaction.get("from", "غير معروف")).strip(),
+                    "to": str(transaction.get("to", "غير معروف")).strip(),
+                },
+                "status_text": "ناجحة",
+                "provider": "syriatel",
+                "all_attempts": all_attempts
+            }
 
-            if account_gsm == gsm or tx_to == gsm:
-                return True, {
-                    "matched_gsm": gsm,
-                    "transaction": {
-                        "transaction_no": str(transaction.get("transaction_no", tx_number)).strip(),
-                        "amount": str(transaction.get("amount", "غير معروف")).strip(),
-                        "date": str(transaction.get("date", "غير معروف")).strip(),
-                        "from": str(transaction.get("from", "غير معروف")).strip(),
-                        "to": str(transaction.get("to", "غير معروف")).strip(),
-                    },
-                    "status_text": "ناجحة",
-                    "provider": "syriatel",
-                    "all_attempts": all_attempts
-                }
+        except Exception as e:
+            all_attempts.append({
+                "gsm": gsm,
+                "error": str(e)
+            })
+            continue
+
+    return False, {
+        "status_text": "غير موجودة أو غير ناجحة",
+        "provider": "syriatel",
+        "all_attempts": all_attempts
+    }
 
         except Exception as e:
             all_attempts.append({"gsm": gsm, "error": str(e)})
