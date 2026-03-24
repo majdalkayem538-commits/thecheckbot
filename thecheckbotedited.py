@@ -6,7 +6,7 @@ import sqlite3
 import time
 import os
 import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from datetime import datetime
 from typing import Tuple, Dict, Any, Optional
 
@@ -25,7 +25,7 @@ from telegram.ext import (
 )
 
 # =========================================
-# إعداداتك
+# إعدادات من Environment Variables
 # =========================================
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
@@ -119,12 +119,6 @@ def safe_json_dump(data: Any) -> str:
 def now_str() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-def mask_number(num: str) -> str:
-    num = str(num or "").strip()
-    if len(num) <= 4:
-        return num
-    return "*" * (len(num) - 4) + num[-4:]
-
 def is_admin(user_id: int) -> bool:
     return user_id == ADMIN_ID
 
@@ -170,7 +164,7 @@ def init_db():
     CREATE TABLE IF NOT EXISTS transactions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         provider TEXT,
-        tx_number TEXT NOT NULL UNIQUE,
+        tx_number TEXT NOT NULL,
         matched_gsm TEXT,
         matched_cash_code TEXT,
         matched_account TEXT,
@@ -185,7 +179,8 @@ def init_db():
         telegram_username TEXT,
         status TEXT NOT NULL,
         raw_response TEXT,
-        created_at TEXT
+        created_at TEXT,
+        UNIQUE(provider, tx_number)
     )
     """)
 
@@ -288,10 +283,13 @@ def log_error(scope: str, telegram_user_id: int, telegram_username: str, details
     conn.commit()
     conn.close()
 
-def is_tx_already_used(tx_number: str) -> bool:
+def is_tx_already_used(provider: str, tx_number: str) -> bool:
     conn = db_connect()
     cur = conn.cursor()
-    cur.execute("SELECT 1 FROM transactions WHERE tx_number = ? LIMIT 1", (tx_number,))
+    cur.execute(
+        "SELECT 1 FROM transactions WHERE provider = ? AND tx_number = ? LIMIT 1",
+        (provider, tx_number)
+    )
     row = cur.fetchone()
     conn.close()
     return row is not None
@@ -892,7 +890,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data["state"] = STATE_NONE
     await update.message.reply_text(
-        "أهلاً وسهلا فيكم اخواتي\nاختارو شو بدكن البوت يعمل\n تذكرو دائما انكن شركاء النجاح بكلشي حلو❤️\n M B T ❤️.",
+        "أهلاً وسهلاً فيكم اخواتي\nاختارو شو بدكن البوت يعمل\nتذكرو دائماً أنكن شركاء النجاح بكلشي حلو ❤️\nM B T ❤️",
         reply_markup=home_keyboard(update.effective_user.id)
     )
 
@@ -1257,7 +1255,6 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             await update.message.reply_text(
                 "💳 تم جلب الرصيد بنجاح\n\n"
-               # f"📱 الرقم: {gsm}\n"
                 f"🔐 كود الكاش: {cash_code}\n"
                 f"💰 الرصيد: {balance} ل.س",
                 reply_markup=action_keyboard(user.id)
@@ -1314,9 +1311,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if ok:
             balances = balance_data.get("balances", {})
             if isinstance(balances, dict):
-                lines = []
-                for cur, bal in balances.items():
-                    lines.append(f"💰 {cur}: {bal}")
+                lines = [f"💰 {cur}: {bal}" for cur, bal in balances.items()]
                 balances_text = "\n".join(lines) if lines else "لا توجد أرصدة"
             elif isinstance(balances, list):
                 lines = []
@@ -1391,7 +1386,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    if is_tx_already_used(tx_number):
+    if is_tx_already_used(provider, tx_number):
         save_duplicate_attempt(provider, tx_number, user.id, username)
 
         await update.message.reply_text(
@@ -1474,7 +1469,6 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"📌 حالة العملية: {status_text}\n"
                 f"📅 التاريخ: {tx_date}\n"
                 f"📤 من: {tx_from}\n"
-               # f"📥 إلى: {tx_to}\n"
                 f"🔐 كود الكاش: {cash_code}",
                 reply_markup=action_keyboard(user.id)
             )
@@ -1488,7 +1482,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"حالة العملية: {status_text}\n"
                 f"التاريخ: {tx_date}\n"
                 f"من: {tx_from}\n"
-               f"إلى: {tx_to}\n"
+                f"إلى: {tx_to}\n"
                 f"الرقم المطابق: {matched_gsm}\n"
                 f"كود الرقم: {cash_code}"
             )
@@ -1585,9 +1579,10 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data["state"] = STATE_NONE
 
-    # =========================================
-    # السيرفر
-    # =========================================
+# =========================================
+# health server لـ Render
+# =========================================
+
 def run_health_server():
     port = int(os.getenv("PORT", "10000"))
 
@@ -1607,25 +1602,44 @@ def run_health_server():
         def log_message(self, format, *args):
             return
 
-    server = HTTPServer(("0.0.0.0", port), Handler)
-    server.serve_forever()
+    try:
+        server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
+        logger.info("Health server started on port %s", port)
+        server.serve_forever()
+    except Exception as e:
+        logger.exception("Health server failed: %s", e)
+        raise
+
 # =========================================
 # التشغيل
 # =========================================
 
 def main():
+    print("STEP 1: main started", flush=True)
+
     if not BOT_TOKEN:
         raise ValueError("BOT_TOKEN is missing")
+    print("STEP 2: BOT_TOKEN OK", flush=True)
+
     if not API_SYRIA_KEY:
         raise ValueError("API_SYRIA_KEY is missing")
+    print("STEP 3: API_SYRIA_KEY OK", flush=True)
+
     if ADMIN_ID == 0:
         raise ValueError("ADMIN_ID is missing or invalid")
+    print("STEP 4: ADMIN_ID OK", flush=True)
+
+    print("STEP 5: SYRIATEL_GSMS =", SYRIATEL_GSMS, flush=True)
+    print("STEP 6: SHAMCASH_ACCOUNTS =", SHAMCASH_ACCOUNTS, flush=True)
 
     init_db()
+    print("STEP 7: DB initialized", flush=True)
 
     threading.Thread(target=run_health_server, daemon=True).start()
+    print("STEP 8: health server started", flush=True)
 
     app = Application.builder().token(BOT_TOKEN).build()
+    print("STEP 9: telegram app built", flush=True)
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("reset", reset))
@@ -1650,8 +1664,12 @@ def main():
     app.add_handler(CallbackQueryHandler(admin_maint_off_handler, pattern=r"^admin_maint_off$"))
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
+    print("STEP 10: handlers added", flush=True)
 
     logger.info("Bot started on Render Web Service...")
-    app.run_polling()
+    print("STEP 11: before polling", flush=True)
+
+    app.run_polling(drop_pending_updates=True)
+
 if __name__ == "__main__":
     main()
