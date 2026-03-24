@@ -1585,20 +1585,28 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # =========================================
 
 def run_health_server():
-    port = int(os.getenv("PORT", 10000))
+    port = int(os.getenv("PORT", "10000"))
 
     class Handler(BaseHTTPRequestHandler):
-        def do_GET(self):
+        def _send_ok(self, body: bytes = b"OK", include_body: bool = True):
             self.send_response(200)
-            self.send_header("Content-type", "text/plain")
+            self.send_header("Content-type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
             self.end_headers()
-            self.wfile.write(b"OK")
+            if include_body:
+                self.wfile.write(body)
+
+        def do_GET(self):
+            self._send_ok(b"OK", include_body=True)
+
+        def do_HEAD(self):
+            self._send_ok(b"OK", include_body=False)
 
         def log_message(self, format, *args):
             return
 
-    server = HTTPServer(("0.0.0.0", port), Handler)
-    print("Health server running...")
+    server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
+    print(f"Health server running on port {port}", flush=True)
     server.serve_forever()
 # =========================================
 # التشغيل
