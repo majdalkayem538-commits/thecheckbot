@@ -1529,7 +1529,8 @@ if provider == "syriatel":
         f"رقم العملية: {tx_number}\n"
         f"التفاصيل:\n" + "\n".join(short_debug)
     )
-            await update.message.reply_text(
+
+                await update.message.reply_text(
                 "✅ تم الاستقبال بنجاح\n\n"
                 f"🏷 النوع: سيريتل كاش\n"
                 f"🧾 رقم العملية: {tx_number}\n"
