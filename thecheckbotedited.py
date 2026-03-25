@@ -680,20 +680,25 @@ def generate_gsm_variants(gsm: str) -> list[str]:
             unique_variants.append(v)
 
     return unique_variants
-    
+
+
 def check_syriatel_tx_multi(tx_number: str) -> Tuple[bool, Dict[str, Any]]:
     all_attempts = []
 
-    for original_gsm in SYRIATEL_GSMS:
-        gsm_variants = generate_gsm_variants(original_gsm)
+    for gsm in SYRIATEL_GSMS:
+        try:
+            gsm_variants = [
+                gsm,
+                gsm.replace("+963", "0"),
+                gsm.replace("0", "963", 1)
+            ]
 
-        for gsm in gsm_variants:
-            try:
+            for gsm_used in gsm_variants:
                 params = {
                     "resource": "syriatel",
                     "action": "find_tx",
                     "tx": tx_number,
-                    "gsm": gsm,
+                    "gsm": gsm_used,
                     "period": "all"
                 }
 
@@ -701,49 +706,43 @@ def check_syriatel_tx_multi(tx_number: str) -> Tuple[bool, Dict[str, Any]]:
                 response.raise_for_status()
                 data = response.json()
 
-                payload = data.get("data", {}) if isinstance(data, dict) else {}
-                transaction = payload.get("transaction", {}) if isinstance(payload, dict) else {}
-                account = payload.get("account", {}) if isinstance(payload, dict) else {}
-
-                all_attempts.append({
-                    "original_gsm": original_gsm,
-                    "gsm_used": gsm,
-                    "success": data.get("success", False) if isinstance(data, dict) else False,
-                    "found": payload.get("found", False) if isinstance(payload, dict) else False,
-                    "account_gsm": str(account.get("gsm", "")).strip(),
-                    "tx_to": str(transaction.get("to", "")).strip(),
-                    "response": data
-                })
-
-                if not data.get("success"):
-                    continue
-
+                payload = data.get("data", {})
                 found = payload.get("found", False)
-                if not found:
-                    continue
+                transaction = payload.get("transaction", {})
 
-                return True, {
-                    "matched_gsm": original_gsm,
-                    "gsm_used": gsm,
-                    "transaction": {
-                        "transaction_no": str(transaction.get("transaction_no", tx_number)).strip(),
-                        "amount": str(transaction.get("amount", "غير معروف")).strip(),
-                        "date": str(transaction.get("date", "غير معروف")).strip(),
-                        "from": str(transaction.get("from", "غير معروف")).strip(),
-                        "to": str(transaction.get("to", "غير معروف")).strip(),
-                    },
-                    "status_text": "ناجحة",
-                    "provider": "syriatel",
-                    "all_attempts": all_attempts
-                }
-
-            except Exception as e:
                 all_attempts.append({
-                    "original_gsm": original_gsm,
-                    "gsm_used": gsm,
-                    "error": str(e)
+                    "original_gsm": gsm,
+                    "gsm_used": gsm_used,
+                    "success": data.get("success"),
+                    "found": found,
+                    "account_gsm": payload.get("gsm"),
+                    "tx_to": transaction.get("to"),
                 })
-                continue
+
+                # ✅ الحل هون
+                # إذا في transaction حتى لو found=False → اعتبرها صحيحة
+                if data.get("success") and transaction:
+                    return True, {
+                        "matched_gsm": gsm,
+                        "gsm_used": gsm_used,
+                        "transaction": {
+                            "transaction_no": str(transaction.get("transaction_no", tx_number)).strip(),
+                            "amount": str(transaction.get("amount", "غير معروف")).strip(),
+                            "date": str(transaction.get("date", "غير معروف")).strip(),
+                            "from": str(transaction.get("from", "غير معروف")).strip(),
+                            "to": str(transaction.get("to", "غير معروف")).strip(),
+                        },
+                        "status_text": "ناجحة",
+                        "provider": "syriatel",
+                        "all_attempts": all_attempts
+                    }
+
+        except Exception as e:
+            all_attempts.append({
+                "gsm": gsm,
+                "error": str(e)
+            })
+            continue
 
     return False, {
         "status_text": "غير موجودة أو غير ناجحة",
