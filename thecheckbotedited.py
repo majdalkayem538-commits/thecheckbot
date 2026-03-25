@@ -645,67 +645,111 @@ def admin_panel_keyboard() -> InlineKeyboardMarkup:
 # =========================================
 # API - Syriatel
 # =========================================
+def normalize_gsm_only_digits(gsm: str) -> str:
+    return "".join(ch for ch in str(gsm).strip() if ch.isdigit())
 
+def generate_gsm_variants(gsm: str) -> list[str]:
+    gsm = normalize_gsm_only_digits(gsm)
+    variants = []
+
+    if not gsm:
+        return variants
+
+    # 09XXXXXXXX
+    if gsm.startswith("09") and len(gsm) == 10:
+        variants.append(gsm)
+
+    # 9639XXXXXXXX
+    if gsm.startswith("963") and len(gsm) == 12:
+        variants.append(gsm)
+
+    # تحويل 09 -> 9639
+    if gsm.startswith("09") and len(gsm) == 10:
+        variants.append("963" + gsm[1:])
+
+    # تحويل 9639 -> 09
+    if gsm.startswith("9639") and len(gsm) == 12:
+        variants.append("0" + gsm[3:])
+
+    # إزالة التكرار مع الحفاظ على الترتيب
+    seen = set()
+    unique_variants = []
+    for v in variants:
+        if v not in seen:
+            seen.add(v)
+            unique_variants.append(v)
+
+    return unique_variants
+    
 def check_syriatel_tx_multi(tx_number: str) -> Tuple[bool, Dict[str, Any]]:
     all_attempts = []
 
-    for gsm in SYRIATEL_GSMS:
-        try:
-            params = {
-                "resource": "syriatel",
-                "action": "find_tx",
-                "tx": tx_number,
-                "gsm": gsm,
-                "period": "all"
-            }
+    for original_gsm in SYRIATEL_GSMS:
+        gsm_variants = generate_gsm_variants(original_gsm)
 
-            response = http.get(BASE_URL, params=params, timeout=25)
-            response.raise_for_status()
-            data = response.json()
+        for gsm in gsm_variants:
+            try:
+                params = {
+                    "resource": "syriatel",
+                    "action": "find_tx",
+                    "tx": tx_number,
+                    "gsm": gsm,
+                    "period": "all"
+                }
 
-            all_attempts.append({
-                "gsm": gsm,
-                "response": data
-            })
+                response = http.get(BASE_URL, params=params, timeout=25)
+                response.raise_for_status()
+                data = response.json()
 
-            if not data.get("success"):
+                payload = data.get("data", {}) if isinstance(data, dict) else {}
+                transaction = payload.get("transaction", {}) if isinstance(payload, dict) else {}
+                account = payload.get("account", {}) if isinstance(payload, dict) else {}
+
+                all_attempts.append({
+                    "original_gsm": original_gsm,
+                    "gsm_used": gsm,
+                    "success": data.get("success", False) if isinstance(data, dict) else False,
+                    "found": payload.get("found", False) if isinstance(payload, dict) else False,
+                    "account_gsm": str(account.get("gsm", "")).strip(),
+                    "tx_to": str(transaction.get("to", "")).strip(),
+                    "response": data
+                })
+
+                if not data.get("success"):
+                    continue
+
+                found = payload.get("found", False)
+                if not found:
+                    continue
+
+                return True, {
+                    "matched_gsm": original_gsm,
+                    "gsm_used": gsm,
+                    "transaction": {
+                        "transaction_no": str(transaction.get("transaction_no", tx_number)).strip(),
+                        "amount": str(transaction.get("amount", "غير معروف")).strip(),
+                        "date": str(transaction.get("date", "غير معروف")).strip(),
+                        "from": str(transaction.get("from", "غير معروف")).strip(),
+                        "to": str(transaction.get("to", "غير معروف")).strip(),
+                    },
+                    "status_text": "ناجحة",
+                    "provider": "syriatel",
+                    "all_attempts": all_attempts
+                }
+
+            except Exception as e:
+                all_attempts.append({
+                    "original_gsm": original_gsm,
+                    "gsm_used": gsm,
+                    "error": str(e)
+                })
                 continue
-
-            payload = data.get("data", {})
-            found = payload.get("found", False)
-
-            if not found:
-                continue
-
-            transaction = payload.get("transaction", {})
-
-            return True, {
-                "matched_gsm": gsm,
-                "transaction": {
-                    "transaction_no": str(transaction.get("transaction_no", tx_number)).strip(),
-                    "amount": str(transaction.get("amount", "غير معروف")).strip(),
-                    "date": str(transaction.get("date", "غير معروف")).strip(),
-                    "from": str(transaction.get("from", "غير معروف")).strip(),
-                    "to": str(transaction.get("to", "غير معروف")).strip(),
-                },
-                "status_text": "ناجحة",
-                "provider": "syriatel",
-                "all_attempts": all_attempts
-            }
-
-        except Exception as e:
-            all_attempts.append({
-                "gsm": gsm,
-                "error": str(e)
-            })
-            continue
 
     return False, {
         "status_text": "غير موجودة أو غير ناجحة",
         "provider": "syriatel",
         "all_attempts": all_attempts
     }
-
 def check_syriatel_balance_by_code(code: str) -> Tuple[bool, Dict[str, Any]]:
     try:
         params = {
@@ -1464,7 +1508,27 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 status="approved",
                 raw_response=raw_json
             )
+if provider == "syriatel":
+    attempts = raw_data.get("all_attempts", [])
+    short_debug = []
 
+    for item in attempts[:10]:
+        short_debug.append(
+            f"orig={item.get('original_gsm', '-')}"
+            f" | used={item.get('gsm_used', '-')}"
+            f" | success={item.get('success', '-')}"
+            f" | found={item.get('found', '-')}"
+            f" | account_gsm={item.get('account_gsm', '-')}"
+            f" | tx_to={item.get('tx_to', '-')}"
+        )
+
+    await notify_admin(
+        context,
+        "DEBUG Syriatel Reject\n"
+        f"المستخدم: @{username}\n"
+        f"رقم العملية: {tx_number}\n"
+        f"التفاصيل:\n" + "\n".join(short_debug)
+    )
             await update.message.reply_text(
                 "✅ تم الاستقبال بنجاح\n\n"
                 f"🏷 النوع: سيريتل كاش\n"
