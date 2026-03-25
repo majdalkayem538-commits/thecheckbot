@@ -1489,6 +1489,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if provider == "syriatel":
             cash_code = get_cash_code_from_number(matched_gsm)
+            gsm_used = raw_data.get("gsm_used", matched_gsm)
 
             save_transaction(
                 provider="syriatel",
@@ -1508,29 +1509,8 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 status="approved",
                 raw_response=raw_json
             )
-if provider == "syriatel":
-    attempts = raw_data.get("all_attempts", [])
-    short_debug = []
 
-    for item in attempts[:10]:
-        short_debug.append(
-            f"orig={item.get('original_gsm', '-')}"
-            f" | used={item.get('gsm_used', '-')}"
-            f" | success={item.get('success', '-')}"
-            f" | found={item.get('found', '-')}"
-            f" | account_gsm={item.get('account_gsm', '-')}"
-            f" | tx_to={item.get('tx_to', '-')}"
-        )
-
-    await notify_admin(
-        context,
-        "DEBUG Syriatel Reject\n"
-        f"المستخدم: @{username}\n"
-        f"رقم العملية: {tx_number}\n"
-        f"التفاصيل:\n" + "\n".join(short_debug)
-    )
-
-                await update.message.reply_text(
+            await update.message.reply_text(
                 "✅ تم الاستقبال بنجاح\n\n"
                 f"🏷 النوع: سيريتل كاش\n"
                 f"🧾 رقم العملية: {tx_number}\n"
@@ -1538,6 +1518,7 @@ if provider == "syriatel":
                 f"📌 حالة العملية: {status_text}\n"
                 f"📅 التاريخ: {tx_date}\n"
                 f"📤 من: {tx_from}\n"
+                f"📥 إلى: {tx_to}\n"
                 f"🔐 كود الكاش: {cash_code}",
                 reply_markup=action_keyboard(user.id)
             )
@@ -1552,7 +1533,8 @@ if provider == "syriatel":
                 f"التاريخ: {tx_date}\n"
                 f"من: {tx_from}\n"
                 f"إلى: {tx_to}\n"
-                f"الرقم المطابق: {matched_gsm}\n"
+                f"الرقم الأصلي المطابق: {matched_gsm}\n"
+                f"الصيغة المستخدمة بالتحقق: {gsm_used}\n"
                 f"كود الرقم: {cash_code}"
             )
 
@@ -1610,6 +1592,28 @@ if provider == "syriatel":
     else:
         status_text = raw_data.get("status_text", "غير موجودة أو غير ناجحة")
         provider_label = "سيريتل كاش" if provider == "syriatel" else "شام كاش"
+
+        if provider == "syriatel":
+            attempts = raw_data.get("all_attempts", [])
+            short_debug = []
+
+            for item in attempts[:10]:
+                short_debug.append(
+                    f"orig={item.get('original_gsm', '-')}"
+                    f" | used={item.get('gsm_used', '-')}"
+                    f" | success={item.get('success', '-')}"
+                    f" | found={item.get('found', '-')}"
+                    f" | account_gsm={item.get('account_gsm', '-')}"
+                    f" | tx_to={item.get('tx_to', '-')}"
+                )
+
+            await notify_admin(
+                context,
+                "DEBUG Syriatel Reject\n"
+                f"المستخدم: @{username}\n"
+                f"رقم العملية: {tx_number}\n"
+                f"التفاصيل:\n" + "\n".join(short_debug)
+            )
 
         save_transaction(
             provider=provider,
