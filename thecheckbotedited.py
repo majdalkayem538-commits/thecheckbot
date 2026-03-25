@@ -674,7 +674,6 @@ def check_syriatel_tx_multi(tx_number: str) -> Tuple[bool, Dict[str, Any]]:
             payload = data.get("data", {})
             found = payload.get("found", False)
 
-            # إذا العملية موجودة ضمن الحساب الذي بحثنا فيه، نعتبرها صحيحة
             if not found:
                 continue
 
@@ -699,16 +698,6 @@ def check_syriatel_tx_multi(tx_number: str) -> Tuple[bool, Dict[str, Any]]:
                 "gsm": gsm,
                 "error": str(e)
             })
-            continue
-
-    return False, {
-        "status_text": "غير موجودة أو غير ناجحة",
-        "provider": "syriatel",
-        "all_attempts": all_attempts
-    }
-
-        except Exception as e:
-            all_attempts.append({"gsm": gsm, "error": str(e)})
             continue
 
     return False, {
