@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: checkbot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python thecheckbot_v2.py
+    plan: free
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: API_SYRIA_KEY
+        sync: false
+      - key: ADMIN_ID
+        sync: false
+      - key: SUPPORT_USERNAME
+        sync: false
+      - key: SYRIATEL_GSMS
+        sync: false
+      - key: SHAMCASH_ACCOUNTS
+        sync: false
+      - key: USE_ALLOWLIST
+        value: "false"
+      - key: ANTI_SPAM_SECONDS
+        value: "4"
+      - key: DB_NAME
+        value: "payments_pro.db"
+      - key: PORT
+        value: "10000"
